@@ -30,9 +30,28 @@ final class RemoteSessionTests: XCTestCase {
         )
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(RemoteSession.self, from: data)
+
         XCTAssertEqual(decoded.id, original.id)
-        XCTAssertEqual(decoded.hostname, "192.168.1.1")
-        XCTAssertEqual(decoded.authMethod, .password)
+        XCTAssertEqual(decoded.name, original.name)
+        XCTAssertEqual(decoded.protocol, original.protocol)
+        XCTAssertEqual(decoded.hostname, original.hostname)
+        XCTAssertEqual(decoded.port, original.port)
+        XCTAssertEqual(decoded.username, original.username)
+        XCTAssertEqual(decoded.authMethod, original.authMethod)
+        XCTAssertEqual(decoded.notes, original.notes)
+        XCTAssertNil(decoded.lastConnectedAt)
+    }
+
+    func test_lastConnectedAtCodable() throws {
+        var session = RemoteSession(name: "test", hostname: "host", username: "user")
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        session.lastConnectedAt = date
+        let data = try JSONEncoder().encode(session)
+        let decoded = try JSONDecoder().decode(RemoteSession.self, from: data)
+        let decodedDate = try XCTUnwrap(decoded.lastConnectedAt)
+        XCTAssertEqual(decodedDate.timeIntervalSince1970,
+                       date.timeIntervalSince1970,
+                       accuracy: 0.001)
     }
 
     func test_publicKeyAuthCodable() throws {
