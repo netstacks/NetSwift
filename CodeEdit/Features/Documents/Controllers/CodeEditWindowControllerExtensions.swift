@@ -81,13 +81,22 @@ extension CodeEditWindowController {
     }
 
     func openSSHConnectionSheet() {
-        guard let utilityAreaViewModel = workspace?.utilityAreaModel else { return }
-        let sheet = NSHostingController(
-            rootView: NewSSHConnectionView()
+        guard let utilityAreaViewModel = workspace?.utilityAreaModel,
+              let presenter = contentViewController else { return }
+        var sheet: NSHostingController<AnyView>?
+        sheet = NSHostingController(
+            rootView: AnyView(
+                NewSSHConnectionView(onDismiss: { [weak presenter] in
+                    guard let sheet else { return }
+                    presenter?.dismiss(sheet)
+                })
                 .environmentObject(utilityAreaViewModel)
+            )
         )
-        sheet.preferredContentSize = NSSize(width: 380, height: 280)
-        contentViewController?.presentAsSheet(sheet)
+        sheet?.preferredContentSize = NSSize(width: 380, height: 280)
+        if let sheet {
+            presenter.presentAsSheet(sheet)
+        }
     }
 
     @IBAction func openWorkspaceSettings(_ sender: Any) {

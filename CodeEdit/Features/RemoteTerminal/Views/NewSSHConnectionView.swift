@@ -8,8 +8,9 @@ import SwiftUI
 /// A sheet for establishing a new SSH connection.
 /// Phase 3 (Session Manager) replaces this with the full session picker.
 struct NewSSHConnectionView: View {
-    @Environment(\.dismiss)
-    private var dismiss
+    /// Called by Cancel and Connect to close the AppKit sheet.
+    /// `@Environment(\.dismiss)` is a no-op when presented via NSHostingController + presentAsSheet.
+    var onDismiss: () -> Void
     @EnvironmentObject private var utilityAreaViewModel: UtilityAreaViewModel
 
     @State private var hostname = ""
@@ -49,7 +50,7 @@ struct NewSSHConnectionView: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button("Cancel") { onDismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button("Connect") { connect() }
                     .keyboardShortcut(.defaultAction)
@@ -71,6 +72,6 @@ struct NewSSHConnectionView: View {
             authMethod: .password
         )
         utilityAreaViewModel.addSSHTerminal(session: session, password: password.isEmpty ? nil : password)
-        dismiss()
+        onDismiss()
     }
 }
