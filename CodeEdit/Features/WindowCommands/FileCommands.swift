@@ -38,6 +38,13 @@ struct FileCommands: Commands {
                     NSApp.sendAction(#selector(CodeEditWindowController.openQuickly(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("New SSH Connection...") {
+                    NSApp.sendAction(#selector(AppDelegate.openNewSSHConnection(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("K", modifiers: [.command, .shift])
             }
         }
 

@@ -184,6 +184,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         updater.checkForUpdates()
     }
 
+    @objc
+    func openNewSSHConnection(_ sender: Any?) {
+        guard let workspace = NSDocumentController.shared.currentDocument as? WorkspaceDocument,
+              let windowController = workspace.windowControllers.first as? CodeEditWindowController
+        else { return }
+        windowController.openSSHConnectionSheet()
+    }
+
     /// Tries to focus a window with specified view content type.
     /// - Parameter type: The type of viewContent which hosted in a window to be focused.
     /// - Returns: `true` if window exist and focused, otherwise - `false`

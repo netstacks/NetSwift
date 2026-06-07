@@ -4,7 +4,7 @@
 
 ### About Window
 
-- <doc:About-Window>
+- <doc:About-Window> 
 
 ### Settings
 

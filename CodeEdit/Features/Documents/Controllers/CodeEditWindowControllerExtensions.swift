@@ -80,6 +80,16 @@ extension CodeEditWindowController {
         self.setDocumentEdited(hasEditedDocuments)
     }
 
+    func openSSHConnectionSheet() {
+        guard let utilityAreaViewModel = workspace?.utilityAreaModel else { return }
+        let sheet = NSHostingController(
+            rootView: NewSSHConnectionView()
+                .environmentObject(utilityAreaViewModel)
+        )
+        sheet.preferredContentSize = NSSize(width: 380, height: 280)
+        contentViewController?.presentAsSheet(sheet)
+    }
+
     @IBAction func openWorkspaceSettings(_ sender: Any) {
         guard let window = window,
               let workspace = workspace,
