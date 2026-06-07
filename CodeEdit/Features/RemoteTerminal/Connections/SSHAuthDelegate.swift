@@ -64,7 +64,6 @@ final class PublicKeyAuthDelegate: NIOSSHClientUserAuthenticationDelegate {
 // MARK: - Keyboard Interactive Authentication
 
 /// Supports TACACS+/RADIUS challenge-response authentication.
-/// Set `responseProvider` before connecting to receive and respond to prompts.
 ///
 /// Note: swift-nio-ssh does not expose a `.keyboardInteractive` method constant on
 /// `NIOSSHAvailableUserAuthenticationMethods`. Keyboard-interactive authentication is
@@ -73,14 +72,13 @@ final class PublicKeyAuthDelegate: NIOSSHClientUserAuthenticationDelegate {
 /// the server advertises any methods (i.e., the available set is non-empty).
 final class KeyboardInteractiveAuthDelegate: NIOSSHClientUserAuthenticationDelegate {
     private let username: String
+    private let responseProvider: (String) -> String
 
-    /// Called on NIO's event loop with each challenge prompt.
-    /// The closure must return the user's response synchronously.
-    /// Wire this to a UI prompt or a stored credential before calling connect().
-    var responseProvider: ((String) -> String) = { _ in "" }
-
-    init(username: String) {
+    /// - Parameter responseProvider: Called on NIO's event loop with each challenge prompt.
+    ///   Must return the user's response synchronously. Wire to a UI prompt or stored credential.
+    init(username: String, responseProvider: @escaping (String) -> String = { _ in "" }) {
         self.username = username
+        self.responseProvider = responseProvider
     }
 
     func nextAuthenticationType(
@@ -94,8 +92,6 @@ final class KeyboardInteractiveAuthDelegate: NIOSSHClientUserAuthenticationDeleg
             nextChallengePromise.succeed(nil)
             return
         }
-        // Keyboard-interactive starts with a none offer; the server sends prompts via
-        // SSH_MSG_USERAUTH_INFO_REQUEST.
         nextChallengePromise.succeed(.init(
             username: username,
             serviceName: "ssh-connection",

@@ -7,6 +7,7 @@ import XCTest
 import NIOCore
 import NIOPosix
 import NIOSSH
+import Crypto
 @testable import CodeEdit
 
 final class SSHAuthDelegateTests: XCTestCase {
@@ -51,18 +52,19 @@ final class SSHAuthDelegateTests: XCTestCase {
         XCTAssertNil(authOffer)
     }
 
-    func test_acceptAllHostKeysDelegate_succeedsImmediately() {
+    func test_acceptAllHostKeysDelegate_succeedsImmediately() throws {
         let delegate = AcceptAllHostKeysDelegate()
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         defer { try? group.syncShutdownGracefully() }
         let loop = group.next()
-        let promise = loop.makePromise(of: Void.self)
 
-        // NIOSSHPublicKey can't be easily constructed in tests; we test the promise succeeds.
-        // Integration test with a real key happens in Task 9's manual test.
-        promise.succeed(())
+        // Generate an ephemeral key to obtain a real NIOSSHPublicKey.
+        let privateKey = NIOSSHPrivateKey(ed25519Key: Curve25519.Signing.PrivateKey())
+        let hostKey = privateKey.publicKey
+
+        let promise = loop.makePromise(of: Void.self)
+        delegate.validateHostKey(hostKey: hostKey, validationCompletePromise: promise)
         XCTAssertNoThrow(try promise.futureResult.wait())
-        _ = delegate  // suppress unused warning; delegate is captured in validateHostKey calls at integration time
     }
 
     func test_keyboardInteractiveDelegate_succeedsWithNoneOffer() {
@@ -107,6 +109,19 @@ final class SSHAuthDelegateTests: XCTestCase {
             nextChallengePromise: promise
         )
 
+        let authOffer = try? promise.futureResult.wait()
+        XCTAssertNil(authOffer)
+    }
+
+    func test_publicKeyDelegate_succeedsNilWhenMethodUnavailable() {
+        let privateKey = NIOSSHPrivateKey(ed25519Key: Curve25519.Signing.PrivateKey())
+        let delegate = PublicKeyAuthDelegate(username: "usr", privateKey: privateKey)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        defer { try? group.syncShutdownGracefully() }
+        let loop = group.next()
+        let promise = loop.makePromise(of: NIOSSHUserAuthenticationOffer?.self)
+
+        delegate.nextAuthenticationType(availableMethods: .password, nextChallengePromise: promise)
         let authOffer = try? promise.futureResult.wait()
         XCTAssertNil(authOffer)
     }
