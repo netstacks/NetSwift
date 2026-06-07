@@ -102,6 +102,22 @@ class UtilityAreaViewModel: ObservableObject {
         addTerminal(rootURL: workspaceURL)
     }
 
+    /// Adds an SSH session tab to the utility area.
+    /// - Parameters:
+    ///   - session: The ``RemoteSession`` configuration describing the remote host.
+    ///   - password: The password to use when ``RemoteSession/authMethod`` is `.password`, otherwise `nil`.
+    func addSSHTerminal(session: RemoteSession, password: String?) {
+        let terminal = UtilityAreaTerminal(
+            id: session.id,
+            url: URL(fileURLWithPath: NSHomeDirectory()),
+            title: session.name,
+            shell: nil,
+            connectionType: .ssh(session: session, password: password)
+        )
+        terminals.append(terminal)
+        selectedTerminals = [terminal.id]
+    }
+
     /// Add a new terminal to the workspace and selects it.
     /// - Parameters:
     ///   - shell: The shell to use, `nil` if auto-detect the default shell.

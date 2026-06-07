@@ -8,6 +8,59 @@
 import SwiftUI
 import Cocoa
 
+// MARK: - SSH terminal cache
+
+/// Caches ``CEConnectionTerminalView`` instances keyed by terminal UUID so that
+/// switching away from an SSH tab and back does not disconnect the session.
+private final class SSHTerminalCache: ObservableObject {
+    private var views: [UUID: CEConnectionTerminalView] = [:]
+
+    /// Returns an existing cached view or creates, connects, and caches a new one.
+    func view(
+        for terminal: UtilityAreaTerminal,
+        session: RemoteSession,
+        password: String?
+    ) -> CEConnectionTerminalView {
+        if let existing = views[terminal.id] {
+            return existing
+        }
+        let connection = SSHConnection(session: session, password: password)
+        let terminalView = CEConnectionTerminalView(connection: connection)
+        views[terminal.id] = terminalView
+        Task {
+            do {
+                try await connection.connect()
+            } catch {
+                let message = "\r\nConnection failed: \(error.localizedDescription)\r\n"
+                await MainActor.run {
+                    terminalView.feed(byteArray: ArraySlice(Array(message.utf8)))
+                }
+            }
+        }
+        return terminalView
+    }
+
+    /// Removes the cached view for a terminal, allowing it to be deallocated.
+    func removeView(for id: UUID) {
+        views[id] = nil
+    }
+}
+
+// MARK: - NSViewRepresentable wrapper for CEConnectionTerminalView
+
+/// Wraps a ``CEConnectionTerminalView`` (an ``NSView`` subclass) for use in SwiftUI.
+private struct SSHTerminalNSView: NSViewRepresentable {
+    let terminalView: CEConnectionTerminalView
+
+    func makeNSView(context: Context) -> CEConnectionTerminalView {
+        terminalView
+    }
+
+    func updateNSView(_ nsView: CEConnectionTerminalView, context: Context) {}
+}
+
+// MARK: - Main view
+
 struct UtilityAreaTerminalView: View {
     @AppSettings(\.theme.matchAppearance)
     private var matchAppearance
@@ -32,6 +85,8 @@ struct UtilityAreaTerminalView: View {
     @State private var sidebarIsCollapsed = false
 
     @StateObject private var themeModel: ThemeModel = .shared
+
+    @StateObject private var sshCache = SSHTerminalCache()
 
     @State private var isMenuVisible = false
 
@@ -103,21 +158,35 @@ struct UtilityAreaTerminalView: View {
                         )
                         VStack(spacing: 0) {
                             Spacer(minLength: 0).frame(minHeight: 0)
-                            TerminalEmulatorView(
-                                url: selectedTerminal.url,
-                                terminalID: selectedTerminal.id,
-                                shellType: selectedTerminal.shell,
-                                onTitleChange: { [weak selectedTerminal] newTitle in
-                                    guard let id = selectedTerminal?.id else { return }
-                                    // This can be called whenever, even in a view update so it needs to be dispatched.
-                                    DispatchQueue.main.async { [weak utilityAreaViewModel] in
-                                        utilityAreaViewModel?.updateTerminal(id, title: newTitle)
+                            switch selectedTerminal.connectionType {
+                            case .localShell:
+                                TerminalEmulatorView(
+                                    url: selectedTerminal.url,
+                                    terminalID: selectedTerminal.id,
+                                    shellType: selectedTerminal.shell,
+                                    onTitleChange: { [weak selectedTerminal] newTitle in
+                                        guard let id = selectedTerminal?.id else { return }
+                                        // This can be called whenever, even in a view update so it needs to be dispatched.
+                                        DispatchQueue.main.async { [weak utilityAreaViewModel] in
+                                            utilityAreaViewModel?.updateTerminal(id, title: newTitle)
+                                        }
                                     }
-                                }
-                            )
-                            .frame(height: max(0, constrainedHeight - 1))
-                            .id(selectedTerminal.id)
-                            .accessibilityIdentifier("terminal")
+                                )
+                                .frame(height: max(0, constrainedHeight - 1))
+                                .id(selectedTerminal.id)
+                                .accessibilityIdentifier("terminal")
+                            case let .ssh(session, password):
+                                SSHTerminalNSView(
+                                    terminalView: sshCache.view(
+                                        for: selectedTerminal,
+                                        session: session,
+                                        password: password
+                                    )
+                                )
+                                .frame(height: max(0, constrainedHeight - 1))
+                                .id(selectedTerminal.id)
+                                .accessibilityIdentifier("terminal")
+                            }
                         }
                     }
                 } else {
@@ -167,6 +236,13 @@ struct UtilityAreaTerminalView: View {
                 return
             }
             utilityAreaViewModel.initializeTerminals(workspaceURL: workspaceURL)
+        }
+        .onChange(of: utilityAreaViewModel.terminals) { oldTerminals, newTerminals in
+            // Remove cached SSH views for terminals that no longer exist.
+            let activeIDs = Set(newTerminals.map(\.id))
+            for oldTerminal in oldTerminals where !activeIDs.contains(oldTerminal.id) {
+                sshCache.removeView(for: oldTerminal.id)
+            }
         }
         .accessibilityIdentifier("terminal-area")
     }
