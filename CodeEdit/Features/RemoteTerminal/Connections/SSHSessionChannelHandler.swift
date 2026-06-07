@@ -41,12 +41,22 @@ final class SSHSessionChannelHandler: ChannelInboundHandler, RemovableChannelHan
 
     private(set) var context: ChannelHandlerContext?
 
-    var cols: Int = 80
-    var rows: Int = 24
+    /// Stored once in `channelActive`/`handlerAdded` (on the event loop).
+    /// Safe to read from a Swift concurrency Task after that point because
+    /// `Channel` itself is a reference type with its own internal thread-safety.
+    private var channel: (any Channel)?
+
+    // `cols` and `rows` are set at init time and are immutable afterward,
+    // eliminating the cross-thread mutation window between construction and
+    // the first event-loop callback.
+    private let cols: Int
+    private let rows: Int
 
     // MARK: - Init
 
-    init() {
+    init(cols: Int = 80, rows: Int = 24) {
+        self.cols = cols
+        self.rows = rows
         var continuation: AsyncStream<ArraySlice<UInt8>>.Continuation!
         inboundStream = AsyncStream { continuation = $0 }
         inboundContinuation = continuation
@@ -57,12 +67,14 @@ final class SSHSessionChannelHandler: ChannelInboundHandler, RemovableChannelHan
     func handlerAdded(context: ChannelHandlerContext) {
         self.context = context
         if context.channel.isActive {
+            self.channel = context.channel
             requestPTY(context: context)
         }
     }
 
     func channelActive(context: ChannelHandlerContext) {
         self.context = context
+        self.channel = context.channel
         requestPTY(context: context)
     }
 
@@ -75,8 +87,11 @@ final class SSHSessionChannelHandler: ChannelInboundHandler, RemovableChannelHan
 
     func channelInactive(context: ChannelHandlerContext) {
         inboundContinuation?.finish()
+        inboundContinuation = nil
         readyContinuation?.resume(throwing: SSHConnectionError.connectionClosed)
         readyContinuation = nil
+        self.context = nil
+        self.channel = nil
     }
 
     func errorCaught(context: ChannelHandlerContext, error: Error) {
@@ -152,22 +167,45 @@ final class SSHSessionChannelHandler: ChannelInboundHandler, RemovableChannelHan
     // MARK: - Public API
 
     /// Suspends until the PTY and shell are both granted by the server.
+    ///
+    /// All mutation of `readyContinuation` is marshalled onto the event loop so
+    /// it races with neither the NIO callbacks nor other callers.
     func waitUntilReady() async throws {
-        try await withCheckedThrowingContinuation { continuation in
-            self.readyContinuation = continuation
+        guard let channel else {
+            throw SSHConnectionError.notConnected
+        }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            channel.eventLoop.execute { [weak self] in
+                guard let self else {
+                    continuation.resume(throwing: SSHConnectionError.notConnected)
+                    return
+                }
+                guard channel.isActive else {
+                    continuation.resume(throwing: SSHConnectionError.connectionClosed)
+                    return
+                }
+                self.readyContinuation = continuation
+            }
         }
     }
 
     /// Sends a window-size change notification to the SSH server.
+    ///
+    /// May be called from any thread; the actual NIO write is marshalled onto
+    /// the event loop to satisfy NIO's thread-safety requirements.
     func sendResize(cols newCols: Int, rows newRows: Int) {
         guard let ctx = context else { return }
-        let resize = SSHChannelRequestEvent.WindowChangeRequest(
-            terminalCharacterWidth: newCols,
-            terminalRowHeight: newRows,
-            terminalPixelWidth: 0,
-            terminalPixelHeight: 0
-        )
-        ctx.triggerUserOutboundEvent(resize, promise: nil)
+        ctx.eventLoop.execute {
+            ctx.triggerUserOutboundEvent(
+                SSHChannelRequestEvent.WindowChangeRequest(
+                    terminalCharacterWidth: newCols,
+                    terminalRowHeight: newRows,
+                    terminalPixelWidth: 0,
+                    terminalPixelHeight: 0
+                ),
+                promise: nil
+            )
+        }
     }
 }
 
