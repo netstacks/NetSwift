@@ -39,6 +39,7 @@ final class TerminalPipelineTests: XCTestCase {
 
         let input: ArraySlice<UInt8> = [72, 105][...]  // "Hi"
         connection.onDataReceived?(input)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
 
         XCTAssertEqual(fed, [72, 105])
         _ = pipeline  // keep alive
@@ -54,6 +55,7 @@ final class TerminalPipelineTests: XCTestCase {
 
         let input: ArraySlice<UInt8> = Array("hello".utf8)[...]
         connection.onDataReceived?(input)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
 
         XCTAssertEqual(String(bytes: fed, encoding: .utf8), "HELLO")
         _ = pipeline
@@ -68,6 +70,7 @@ final class TerminalPipelineTests: XCTestCase {
         // Input with ANSI color code wrapping "OK"
         let input: [UInt8] = Array("\u{1B}[32mOK\u{1B}[0m".utf8)
         connection.onDataReceived?(input[...])
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
 
         XCTAssertEqual(notifier.received, ["OK"])
         _ = pipeline
@@ -80,6 +83,7 @@ final class TerminalPipelineTests: XCTestCase {
         pipeline.notifyingObservers.append(notifier)
 
         connection.onTerminated?(42)
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
 
         XCTAssertEqual(notifier.terminatedWith, .some(42))
         _ = pipeline

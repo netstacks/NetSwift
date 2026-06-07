@@ -31,23 +31,30 @@ final class TerminalPipeline {
         self.feedCallback = feedCallback
 
         connection.onDataReceived = { [weak self] bytes in
-            self?.receive(bytes)
+            DispatchQueue.main.async {
+                self?.receive(bytes)
+            }
         }
 
         connection.onTerminated = { [weak self] exitCode in
-            self?.notifyingObservers.forEach { $0.connectionDidTerminate(exitCode: exitCode) }
+            DispatchQueue.main.async {
+                let observers = self?.notifyingObservers ?? []
+                observers.forEach { $0.connectionDidTerminate(exitCode: exitCode) }
+            }
         }
     }
 
     private func receive(_ bytes: ArraySlice<UInt8>) {
         var current = bytes
-        for observer in processingObservers {
+        let processors = processingObservers
+        for observer in processors {
             current = observer.process(bytes: current)
         }
 
         feedCallback(current)
 
         let text = ANSIStripper.strip(current)
-        notifyingObservers.forEach { $0.connectionDidReceive(text: text) }
+        let notifiers = notifyingObservers
+        notifiers.forEach { $0.connectionDidReceive(text: text) }
     }
 }
