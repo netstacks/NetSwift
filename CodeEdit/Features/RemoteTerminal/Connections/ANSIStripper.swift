@@ -26,11 +26,9 @@ enum ANSIStripper {
                         idx = bytes.index(after: idx)
                     }
                     if idx < bytes.endIndex { idx = bytes.index(after: idx) }
-                } else if (0x40...0x5F).contains(next) {
-                    // Two-byte escape sequence (ESC + Fe)
-                    idx = bytes.index(after: idx)
                 } else if next == 0x5D {
                     // OSC sequence (ESC ] ... ST or BEL)
+                    // Must be checked before the broad Fe range — 0x5D is within 0x40...0x5F
                     idx = bytes.index(after: idx)
                     while idx < bytes.endIndex && bytes[idx] != 0x07 && bytes[idx] != 0x1B {
                         idx = bytes.index(after: idx)
@@ -41,6 +39,9 @@ enum ANSIStripper {
                     } else if idx < bytes.endIndex {
                         idx = bytes.index(after: idx) // skip BEL
                     }
+                } else if (0x40...0x5F).contains(next) {
+                    // Two-byte escape sequence (ESC + Fe, e.g. ESC M = reverse index)
+                    idx = bytes.index(after: idx)
                 }
             } else {
                 result.append(byte)
