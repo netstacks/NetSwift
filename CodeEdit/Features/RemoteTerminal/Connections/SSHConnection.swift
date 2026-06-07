@@ -112,10 +112,20 @@ final class SSHConnection: TerminalConnection {
                 try childChannel.pipeline.syncOperations.addHandler(sessionHandler)
             }
         }
-        _ = try await channelPromise.futureResult.get()
+        do {
+            _ = try await channelPromise.futureResult.get()
+        } catch {
+            cleanupFailedConnect()
+            throw error
+        }
 
         // Wait for PTY + shell to be granted before declaring connected.
-        try await sessionHandler.waitUntilReady()
+        do {
+            try await sessionHandler.waitUntilReady()
+        } catch {
+            cleanupFailedConnect()
+            throw error
+        }
         isConnected = true
 
         // Forward bytes from the async stream to onDataReceived.
@@ -140,14 +150,8 @@ final class SSHConnection: TerminalConnection {
     }
 
     func send(data: ArraySlice<UInt8>) {
-        guard isConnected, let handler = sessionHandler, let ctx = handler.context else { return }
-        var buffer = ctx.channel.allocator.buffer(capacity: data.count)
-        buffer.writeBytes(data)
-        let channelData = SSHChannelData(type: .channel, data: .byteBuffer(buffer))
-        ctx.eventLoop.execute {
-            // NIOAny wraps any NIO message type for pipeline writes.
-            ctx.writeAndFlush(NIOAny(channelData), promise: nil)
-        }
+        guard isConnected, let handler = sessionHandler else { return }
+        handler.send(data)
     }
 
     func resize(cols: Int, rows: Int) {
@@ -156,6 +160,14 @@ final class SSHConnection: TerminalConnection {
     }
 
     // MARK: - Private
+
+    /// Closes the transport channel and nils all connection state after a failed `connect()`.
+    private func cleanupFailedConnect() {
+        transportChannel?.close(promise: nil)
+        transportChannel = nil
+        sshHandler = nil
+        sessionHandler = nil
+    }
 
     private func buildAuthDelegate() -> any NIOSSHClientUserAuthenticationDelegate {
         switch session.authMethod {

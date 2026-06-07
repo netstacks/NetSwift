@@ -66,10 +66,7 @@ final class SSHSessionChannelHandler: ChannelInboundHandler, RemovableChannelHan
 
     func handlerAdded(context: ChannelHandlerContext) {
         self.context = context
-        if context.channel.isActive {
-            self.channel = context.channel
-            requestPTY(context: context)
-        }
+        self.channel = context.channel
     }
 
     func channelActive(context: ChannelHandlerContext) {
@@ -165,6 +162,19 @@ final class SSHSessionChannelHandler: ChannelInboundHandler, RemovableChannelHan
     }
 
     // MARK: - Public API
+
+    /// Sends bytes to the SSH server. Safe to call from any thread.
+    func send(_ bytes: ArraySlice<UInt8>) {
+        guard let ctx = context else { return }
+        // Capture bytes as Array before the event loop hop (ArraySlice is not Sendable across actor boundaries).
+        let data = Array(bytes)
+        ctx.eventLoop.execute { [weak self] in
+            guard let self, let ctx = self.context, ctx.channel.isActive else { return }
+            var buffer = ctx.channel.allocator.buffer(capacity: data.count)
+            buffer.writeBytes(data)
+            ctx.writeAndFlush(NIOAny(SSHChannelData(type: .channel, data: .byteBuffer(buffer))), promise: nil)
+        }
+    }
 
     /// Suspends until the PTY and shell are both granted by the server.
     ///
