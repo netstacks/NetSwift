@@ -15,7 +15,13 @@ import Cocoa
 private final class SSHTerminalCache: ObservableObject {
     private var views: [UUID: CEConnectionTerminalView] = [:]
 
-    /// Returns an existing cached view or creates, connects, and caches a new one.
+    deinit {
+        views.values.forEach { $0.connection.disconnect() }
+    }
+
+    /// Returns an existing cached view or creates and caches a new one.
+    /// Connection is started in ``SSHTerminalNSView/makeNSView(context:)`` to avoid
+    /// side effects during SwiftUI body evaluation.
     func view(
         for terminal: UtilityAreaTerminal,
         session: RemoteSession,
@@ -27,9 +33,30 @@ private final class SSHTerminalCache: ObservableObject {
         let connection = SSHConnection(session: session, password: password)
         let terminalView = CEConnectionTerminalView(connection: connection)
         views[terminal.id] = terminalView
+        return terminalView
+    }
+
+    /// Disconnects and removes the cached view for a terminal.
+    func removeView(for id: UUID) {
+        views[id]?.connection.disconnect()
+        views[id] = nil
+    }
+}
+
+// MARK: - NSViewRepresentable wrapper for CEConnectionTerminalView
+
+/// Wraps a ``CEConnectionTerminalView`` (an ``NSView`` subclass) for use in SwiftUI.
+/// Fires the SSH connect task in ``makeNSView(context:)`` — the correct lifecycle hook
+/// for one-time setup — rather than during SwiftUI body evaluation.
+private struct SSHTerminalNSView: NSViewRepresentable {
+    let terminalView: CEConnectionTerminalView
+
+    func makeNSView(context: Context) -> CEConnectionTerminalView {
+        let conn = terminalView.connection
         Task {
+            guard !conn.isConnected else { return }
             do {
-                try await connection.connect()
+                try await conn.connect()
             } catch {
                 let message = "\r\nConnection failed: \(error.localizedDescription)\r\n"
                 await MainActor.run {
@@ -38,22 +65,6 @@ private final class SSHTerminalCache: ObservableObject {
             }
         }
         return terminalView
-    }
-
-    /// Removes the cached view for a terminal, allowing it to be deallocated.
-    func removeView(for id: UUID) {
-        views[id] = nil
-    }
-}
-
-// MARK: - NSViewRepresentable wrapper for CEConnectionTerminalView
-
-/// Wraps a ``CEConnectionTerminalView`` (an ``NSView`` subclass) for use in SwiftUI.
-private struct SSHTerminalNSView: NSViewRepresentable {
-    let terminalView: CEConnectionTerminalView
-
-    func makeNSView(context: Context) -> CEConnectionTerminalView {
-        terminalView
     }
 
     func updateNSView(_ nsView: CEConnectionTerminalView, context: Context) {}
@@ -213,7 +224,11 @@ struct UtilityAreaTerminalView: View {
                         Image(systemName: "trash")
                     }
                     .help("Reset the terminal")
-                    .disabled(getSelectedTerminal() == nil)
+                    .disabled({
+                        guard let terminal = getSelectedTerminal() else { return true }
+                        if case .localShell = terminal.connectionType { return false }
+                        return true
+                    }())
                     Button {
                         // split terminal
                     } label: {

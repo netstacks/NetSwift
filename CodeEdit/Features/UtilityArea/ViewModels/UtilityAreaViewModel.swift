@@ -108,7 +108,7 @@ class UtilityAreaViewModel: ObservableObject {
     ///   - password: The password to use when ``RemoteSession/authMethod`` is `.password`, otherwise `nil`.
     func addSSHTerminal(session: RemoteSession, password: String?) {
         let terminal = UtilityAreaTerminal(
-            id: session.id,
+            id: UUID(),
             url: URL(fileURLWithPath: NSHomeDirectory()),
             title: session.name,
             shell: nil,
