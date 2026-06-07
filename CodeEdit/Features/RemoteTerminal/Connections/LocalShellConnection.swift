@@ -62,6 +62,7 @@ final class LocalShellConnection: NSObject, TerminalConnection {
 
         env.append(contentsOf: extraEnvironment)
 
+        isConnected = true
         process.startProcess(
             executable: shellPath,
             args: shellArgs,
@@ -69,7 +70,6 @@ final class LocalShellConnection: NSObject, TerminalConnection {
             execName: resolvedShell.rawValue,
             currentDirectory: workspaceURL?.absolutePath
         )
-        isConnected = true
     }
 
     func disconnect() {
