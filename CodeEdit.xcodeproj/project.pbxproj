@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CE001A012E800000001NIOSSH /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = CE001A002E800000001NIOSSH /* NIOSSH */; };
+		CE001A022E800000001NIOSSH /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = CE001A032E800000001NIOSSH /* NIOCore */; };
+		CE001A042E800000001NIOSSH /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = CE001A052E800000001NIOSSH /* NIOPosix */; };
 		2816F594280CF50500DD548B /* CodeEditSymbols in Frameworks */ = {isa = PBXBuildFile; productRef = 2816F593280CF50500DD548B /* CodeEditSymbols */; };
 		283BDCBD2972EEBD002AFF81 /* Package.resolved in Resources */ = {isa = PBXBuildFile; fileRef = 283BDCBC2972EEBD002AFF81 /* Package.resolved */; };
 		284DC8512978BA2600BF2770 /* .all-contributorsrc in Resources */ = {isa = PBXBuildFile; fileRef = 284DC8502978BA2600BF2770 /* .all-contributorsrc */; };
@@ -170,6 +173,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE001A012E800000001NIOSSH /* NIOSSH in Frameworks */,
+				CE001A022E800000001NIOSSH /* NIOCore in Frameworks */,
+				CE001A042E800000001NIOSSH /* NIOPosix in Frameworks */,
 				302AD7FF2D8054D500231E16 /* ZIPFoundation in Frameworks */,
 				6C85BB402C2105ED00EB5DEF /* CodeEditKit in Frameworks */,
 				6C66C31329D05CDC00DE9ED2 /* GRDB in Frameworks */,
@@ -312,6 +318,9 @@
 			);
 			name = CodeEdit;
 			packageProductDependencies = (
+				CE001A002E800000001NIOSSH /* NIOSSH */,
+				CE001A032E800000001NIOSSH /* NIOCore */,
+				CE001A052E800000001NIOSSH /* NIOPosix */,
 				2816F593280CF50500DD548B /* CodeEditSymbols */,
 				58F2EB1D292FB954004A9BDE /* Sparkle */,
 				6C147C4429A329350089B630 /* OrderedCollections */,
@@ -425,6 +434,7 @@
 			);
 			mainGroup = B658FB2327DA9E0F00EA4DBD;
 			packageReferences = (
+				CE001A062E800000001NIOSSH /* XCRemoteSwiftPackageReference "swift-nio-ssh" */,
 				2816F592280CF50500DD548B /* XCRemoteSwiftPackageReference "CodeEditSymbols" */,
 				287136B1292A407E00E9F5F4 /* XCRemoteSwiftPackageReference "SwiftLintPlugin" */,
 				58F2EB1C292FB954004A9BDE /* XCRemoteSwiftPackageReference "Sparkle" */,
@@ -1675,6 +1685,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		CE001A062E800000001NIOSSH /* XCRemoteSwiftPackageReference "swift-nio-ssh" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio-ssh.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.8.0;
+			};
+		};
 		2816F592280CF50500DD548B /* XCRemoteSwiftPackageReference "CodeEditSymbols" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/CodeEditApp/CodeEditSymbols";
@@ -1854,6 +1872,21 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		CE001A002E800000001NIOSSH /* NIOSSH */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CE001A062E800000001NIOSSH /* XCRemoteSwiftPackageReference "swift-nio-ssh" */;
+			productName = NIOSSH;
+		};
+		CE001A032E800000001NIOSSH /* NIOCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CE001A062E800000001NIOSSH /* XCRemoteSwiftPackageReference "swift-nio-ssh" */;
+			productName = NIOCore;
+		};
+		CE001A052E800000001NIOSSH /* NIOPosix */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CE001A062E800000001NIOSSH /* XCRemoteSwiftPackageReference "swift-nio-ssh" */;
+			productName = NIOPosix;
+		};
 		2816F593280CF50500DD548B /* CodeEditSymbols */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 2816F592280CF50500DD548B /* XCRemoteSwiftPackageReference "CodeEditSymbols" */;
