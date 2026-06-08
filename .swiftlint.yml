@@ -12,6 +12,8 @@ identifier_name:
   excluded:
     - id
     - vc
+    - a
+    - b
 
 # paths to ignore during linting.
 excluded:
