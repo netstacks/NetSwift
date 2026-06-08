@@ -137,6 +137,10 @@ final class SessionManagerViewModel: ObservableObject {
         }
     }
 
+    func password(for sessionID: UUID) -> String? {
+        credentials.password(forSessionID: sessionID)
+    }
+
     // MARK: - Duplicate
 
     @discardableResult
@@ -219,5 +223,56 @@ final class SessionManagerViewModel: ObservableObject {
             if current == SessionFolder.rootID && ancestor != SessionFolder.rootID { return false }
         }
         return false
+    }
+
+    // MARK: - Search
+
+    /// Sessions whose name/hostname/username/notes contain `query` (case-insensitive).
+    /// Returns all sessions when `query` is blank.
+    func searchMatches(query: String) -> [RemoteSession] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let all = Array(sessions.values).filter { $0.id != SessionFolder.rootID }
+        guard !trimmed.isEmpty else { return all.sorted { $0.name < $1.name } }
+        return all.filter { session in
+            session.name.lowercased().contains(trimmed)
+                || session.hostname.lowercased().contains(trimmed)
+                || session.username.lowercased().contains(trimmed)
+                || session.notes.lowercased().contains(trimmed)
+        }.sorted { $0.name < $1.name }
+    }
+
+    // MARK: - Bulk edit
+
+    /// Sets `authMethod` on every session anywhere beneath `folderID` (inclusive).
+    func bulkSetAuthMethod(_ method: AuthMethod, inFolder folderID: UUID) {
+        for node in children(of: folderID) {
+            switch node {
+            case .session(var session):
+                session.authMethod = method
+                sessions[session.id] = session
+                store.saveSession(session)
+            case .folder(let folder):
+                bulkSetAuthMethod(method, inFolder: folder.id)
+            }
+        }
+    }
+
+    // MARK: - Connect
+
+    /// Opens a session in the bottom utility-area terminal panel, reusing the
+    /// Phase-1/2 SSH/Telnet path. Stamps `lastConnectedAt` and persists it.
+    func connect(_ sessionID: UUID, using utilityArea: UtilityAreaViewModel) {
+        guard var session = sessions[sessionID] else { return }
+        session.lastConnectedAt = Date()
+        sessions[sessionID] = session
+        store.saveSession(session)
+
+        switch session.protocol {
+        case .ssh:
+            let password = session.authMethod == .password ? credentials.password(forSessionID: sessionID) : nil
+            utilityArea.addSSHTerminal(session: session, password: password)
+        case .telnet:
+            utilityArea.addTelnetTerminal(session: session)
+        }
     }
 }

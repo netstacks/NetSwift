@@ -164,4 +164,41 @@ final class SessionManagerViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.isDescendant(inner.id, of: outer.id))
         XCTAssertFalse(viewModel.isDescendant(outer.id, of: inner.id))
     }
+
+    func test_searchMatchesNameHostUserNotes() {
+        viewModel.createSession(
+            RemoteSession(name: "Core", hostname: "10.0.0.1", username: "admin", notes: "primary"),
+            in: SessionFolder.rootID
+        )
+        viewModel.createSession(
+            RemoteSession(name: "Edge", hostname: "192.168.1.9", username: "ops", notes: "backup"),
+            in: SessionFolder.rootID
+        )
+        XCTAssertEqual(viewModel.searchMatches(query: "core").map(\.name), ["Core"])
+        XCTAssertEqual(viewModel.searchMatches(query: "192.168").map(\.name), ["Edge"])
+        XCTAssertEqual(viewModel.searchMatches(query: "ADMIN").map(\.name), ["Core"])
+        XCTAssertEqual(viewModel.searchMatches(query: "backup").map(\.name), ["Edge"])
+        XCTAssertEqual(viewModel.searchMatches(query: "zzz").count, 0)
+    }
+
+    func test_passwordStorage() {
+        let session = RemoteSession(name: "s", hostname: "h", username: "u")
+        viewModel.createSession(session, in: SessionFolder.rootID)
+        viewModel.setPassword("secret", for: session.id)
+        XCTAssertEqual(viewModel.password(for: session.id), "secret")
+        viewModel.setPassword(nil, for: session.id)
+        XCTAssertNil(viewModel.password(for: session.id))
+    }
+
+    func test_bulkSetAuthMethodAcrossFolder() {
+        let folder = viewModel.createFolder(name: "Lab", in: SessionFolder.rootID)
+        let sub = viewModel.createFolder(name: "Sub", in: folder.id)
+        let s1 = RemoteSession(name: "a", hostname: "h", username: "u")
+        let s2 = RemoteSession(name: "b", hostname: "h", username: "u")
+        viewModel.createSession(s1, in: folder.id)
+        viewModel.createSession(s2, in: sub.id)
+        viewModel.bulkSetAuthMethod(.keyboardInteractive, inFolder: folder.id)
+        XCTAssertEqual(viewModel.session(s1.id)?.authMethod, .keyboardInteractive)
+        XCTAssertEqual(viewModel.session(s2.id)?.authMethod, .keyboardInteractive)
+    }
 }
