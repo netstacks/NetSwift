@@ -22,6 +22,21 @@ final class SessionStore {
     /// Optional so callers can degrade gracefully if the database fails to open.
     static let shared: SessionStore? = try? SessionStore()
 
+    /// Last-resort in-memory store so UI can always construct a view model.
+    /// Uses a unique temp path; not persisted across launches.
+    static let inMemoryFallback: SessionStore = {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codeedit-sessions-fallback.db")
+        // A temp-dir SQLite file open does not realistically fail, and this only runs
+        // if the shared store already failed. `force_try` is disallowed by SwiftLint,
+        // so use do/catch and fatalError on the practically impossible failure.
+        do {
+            return try SessionStore(url)
+        } catch {
+            fatalError("Failed to open in-memory fallback session store: \(error)")
+        }
+    }()
+
     private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "",
         category: "SessionStore"
