@@ -135,8 +135,8 @@ final class TelnetParser {
             return [Self.IAC, Self.WILL, option]
 
         case Self.DONT:
-            if option == Self.OPT_NAWS { nawsEnabled = false }
             guard localWill.remove(option) != nil else { return [] }
+            if option == Self.OPT_NAWS { nawsEnabled = false }
             return [Self.IAC, Self.WONT, option]
 
         case Self.WILL:

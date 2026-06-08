@@ -59,6 +59,15 @@ final class TelnetParserTests: XCTestCase {
         XCTAssertTrue(responses.isEmpty, "Agreed option must not be re-negotiated")
     }
 
+    func test_dontNAWS_afterAgreement_disablesNAWS() {
+        let parser = TelnetParser()
+        _ = parser.process(bytes: [IAC, DO, TelnetParser.OPT_NAWS][...])
+        XCTAssertTrue(parser.nawsEnabled)
+        let (_, responses) = parser.process(bytes: [IAC, DONT, TelnetParser.OPT_NAWS][...])
+        XCTAssertFalse(parser.nawsEnabled)
+        XCTAssertEqual(responses, [IAC, WONT, TelnetParser.OPT_NAWS])
+    }
+
     func test_negotiationInterleavedWithData() {
         let parser = TelnetParser()
         var input = Array("AB".utf8)
