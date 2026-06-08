@@ -72,8 +72,14 @@ final class SessionStore {
             self.databaseQueue = databaseQueue
         } catch {
             if retry {
-                // Deleting on failure can recover from corruption or a version error.
-                try? FileManager.default.removeItem(at: databaseURL)
+                // The DB is unusable. Preserve it as a breadcrumb rather than silently
+                // discarding user-authored session data, then retry with a fresh file.
+                let corruptURL = databaseURL.appendingPathExtension("corrupt-\(UUID().uuidString)")
+                do {
+                    try FileManager.default.moveItem(at: databaseURL, to: corruptURL)
+                } catch {
+                    try? FileManager.default.removeItem(at: databaseURL)
+                }
                 try attemptMigration(retry: false)
                 return
             }

@@ -15,10 +15,33 @@ final class SessionStoreTests: XCTestCase {
     override func tearDownWithError() throws {
         store = nil
         try? FileManager.default.removeItem(at: tempURL)
+        // Remove any moved-aside corrupt DB breadcrumbs from the recovery test.
+        let tempDir = tempURL.deletingLastPathComponent()
+        let base = tempURL.lastPathComponent
+        let siblings = (try? FileManager.default.contentsOfDirectory(atPath: tempDir.path)) ?? []
+        for name in siblings where name.hasPrefix(base) && name.contains("corrupt") {
+            try? FileManager.default.removeItem(at: tempDir.appendingPathComponent(name))
+        }
     }
 
     func test_emptyStore_returnsNoSessions() {
         XCTAssertTrue(store.allSessions().isEmpty)
+    }
+
+    func test_createsDatabaseFile() {
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tempURL.path))
+    }
+
+    func test_recoversFromCorruptedDatabase() throws {
+        // Tear down the good store, write garbage to the same path, and reopen.
+        store = nil
+        try Data([0x00, 0x01, 0x02, 0x03, 0xFF, 0xFE]).write(to: tempURL)
+        let recovered = try SessionStore(tempURL)
+        // Must construct without throwing and be usable (fresh, empty DB).
+        XCTAssertTrue(recovered.allSessions().isEmpty)
+        let session = RemoteSession(name: "after-recovery", hostname: "h", username: "u")
+        recovered.saveSession(session)
+        XCTAssertEqual(recovered.allSessions().count, 1)
     }
 
     func test_saveThenFetchSession() {
