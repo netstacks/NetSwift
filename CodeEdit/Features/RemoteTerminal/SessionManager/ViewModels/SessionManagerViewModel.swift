@@ -163,4 +163,61 @@ final class SessionManagerViewModel: ObservableObject {
         }
         return copy
     }
+
+    // MARK: - Move / reorder
+
+    /// Moves a node to `parentID` at the given index (append if `index` is nil).
+    /// No-op for the root sentinel, unknown nodes, or moving a folder into its own subtree.
+    func move(_ nodeID: UUID, to parentID: UUID, at index: Int?) {
+        guard nodeID != SessionFolder.rootID, folders[parentID] != nil else { return }
+        if folders[nodeID] != nil, nodeID == parentID || isDescendant(parentID, of: nodeID) {
+            return
+        }
+
+        let oldParentID: UUID
+        if let folder = folders[nodeID] {
+            oldParentID = folder.parentID ?? SessionFolder.rootID
+        } else if let session = sessions[nodeID] {
+            oldParentID = session.folderID ?? SessionFolder.rootID
+        } else {
+            return
+        }
+
+        // Detach from old parent.
+        if var oldParent = folders[oldParentID] {
+            oldParent.childIDs.removeAll { $0 == nodeID }
+            folders[oldParentID] = oldParent
+            store.saveFolder(oldParent)
+        }
+
+        // Update the node's parent reference.
+        if var folder = folders[nodeID] {
+            folder.parentID = parentID
+            folders[nodeID] = folder
+            store.saveFolder(folder)
+        } else if var session = sessions[nodeID] {
+            session.folderID = parentID
+            sessions[nodeID] = session
+            store.saveSession(session)
+        }
+
+        // Insert into new parent at the requested position.
+        guard var newParent = folders[parentID] else { return }
+        newParent.childIDs.removeAll { $0 == nodeID }
+        let clamped = max(0, min(index ?? newParent.childIDs.count, newParent.childIDs.count))
+        newParent.childIDs.insert(nodeID, at: clamped)
+        folders[parentID] = newParent
+        store.saveFolder(newParent)
+    }
+
+    /// True if `candidate` is `ancestor` or lives anywhere beneath it.
+    func isDescendant(_ candidate: UUID, of ancestor: UUID) -> Bool {
+        var current: UUID? = candidate
+        while let id = current {
+            if id == ancestor { return true }
+            current = folders[id]?.parentID
+            if current == SessionFolder.rootID && ancestor != SessionFolder.rootID { return false }
+        }
+        return false
+    }
 }

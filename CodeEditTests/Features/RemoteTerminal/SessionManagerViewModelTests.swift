@@ -128,4 +128,40 @@ final class SessionManagerViewModelTests: XCTestCase {
         // Clean up the copy's keychain entry.
         if let copyID = copy?.id { credentials.deletePassword(forSessionID: copyID) }
     }
+
+    func test_moveSessionIntoFolder() {
+        let folder = viewModel.createFolder(name: "Lab", in: SessionFolder.rootID)
+        let session = RemoteSession(name: "s", hostname: "h", username: "u")
+        viewModel.createSession(session, in: SessionFolder.rootID)
+        viewModel.move(session.id, to: folder.id, at: nil)
+        XCTAssertTrue(viewModel.rootNodes.map(\.id).contains(folder.id))
+        XCTAssertEqual(viewModel.children(of: folder.id).map(\.id), [session.id])
+        XCTAssertEqual(viewModel.session(session.id)?.folderID, folder.id)
+    }
+
+    func test_reorderWithinParent() {
+        let one = RemoteSession(name: "1", hostname: "h", username: "u")
+        let two = RemoteSession(name: "2", hostname: "h", username: "u")
+        viewModel.createSession(one, in: SessionFolder.rootID)
+        viewModel.createSession(two, in: SessionFolder.rootID)
+        XCTAssertEqual(viewModel.rootNodes.map(\.name), ["1", "2"])
+        viewModel.move(two.id, to: SessionFolder.rootID, at: 0)
+        XCTAssertEqual(viewModel.rootNodes.map(\.name), ["2", "1"])
+    }
+
+    func test_cannotMoveFolderIntoItsOwnDescendant() {
+        let outer = viewModel.createFolder(name: "outer", in: SessionFolder.rootID)
+        let inner = viewModel.createFolder(name: "inner", in: outer.id)
+        viewModel.move(outer.id, to: inner.id, at: nil)
+        // The illegal move is ignored — outer stays at root, inner stays under outer.
+        XCTAssertTrue(viewModel.rootNodes.map(\.id).contains(outer.id))
+        XCTAssertEqual(viewModel.children(of: outer.id).map(\.id), [inner.id])
+    }
+
+    func test_isDescendant() {
+        let outer = viewModel.createFolder(name: "outer", in: SessionFolder.rootID)
+        let inner = viewModel.createFolder(name: "inner", in: outer.id)
+        XCTAssertTrue(viewModel.isDescendant(inner.id, of: outer.id))
+        XCTAssertFalse(viewModel.isDescendant(outer.id, of: inner.id))
+    }
 }
