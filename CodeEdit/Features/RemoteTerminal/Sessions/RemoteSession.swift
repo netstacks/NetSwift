@@ -38,6 +38,7 @@ struct RemoteSession: Identifiable, Codable, Equatable {
     var notes: String
     var createdAt: Date
     var lastConnectedAt: Date?
+    var folderID: UUID?
 
     init(
         id: UUID = UUID(),
@@ -47,6 +48,7 @@ struct RemoteSession: Identifiable, Codable, Equatable {
         port: Int? = nil,
         username: String,
         authMethod: AuthMethod = .password,
+        folderID: UUID? = nil,
         notes: String = "",
         createdAt: Date = Date()
     ) {
@@ -57,6 +59,7 @@ struct RemoteSession: Identifiable, Codable, Equatable {
         self.port = port ?? connectionProtocol.defaultPort
         self.username = username
         self.authMethod = authMethod
+        self.folderID = folderID
         self.notes = notes
         self.createdAt = createdAt
     }
