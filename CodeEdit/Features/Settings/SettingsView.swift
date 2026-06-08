@@ -66,6 +66,13 @@ struct SettingsView: View {
         ),
         .init(
             SettingsPage(
+                .sessionManager,
+                baseColor: .teal,
+                icon: .system("rectangle.connected.to.line.below")
+            )
+        ),
+        .init(
+            SettingsPage(
                 .search,
                 baseColor: .blue,
                 icon: .system("magnifyingglass")
@@ -192,6 +199,8 @@ struct SettingsView: View {
                     TextEditingSettingsView()
                 case .terminal:
                     TerminalSettingsView()
+                case .sessionManager:
+                    SessionManagerSettingsView()
                 case .search:
                     SearchSettingsView()
                 case .sourceControl:
