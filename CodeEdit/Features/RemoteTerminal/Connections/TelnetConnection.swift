@@ -51,10 +51,18 @@ final class TelnetConnection: TerminalConnection {
                         if !resumed { resumed = true; continuation.resume() }
                         self.receiveLoop()
                     case .failed(let error):
-                        if !resumed { resumed = true; continuation.resume(throwing: error) }
-                        self.terminate(exitCode: nil)
+                        if !resumed {
+                            // Failure during the initial connect: surface via connect()'s throw only.
+                            resumed = true
+                            self.isConnected = false
+                            continuation.resume(throwing: error)
+                        } else {
+                            // Failure after the connection was established.
+                            self.terminate(exitCode: nil)
+                        }
                     case .cancelled:
                         self.isConnected = false
+                        if !resumed { resumed = true; continuation.resume(throwing: CancellationError()) }
                     default:
                         break
                     }
