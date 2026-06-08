@@ -99,6 +99,25 @@ extension CodeEditWindowController {
         }
     }
 
+    func openTelnetConnectionSheet() {
+        guard let utilityAreaViewModel = workspace?.utilityAreaModel,
+              let presenter = contentViewController else { return }
+        var sheet: NSHostingController<AnyView>?
+        sheet = NSHostingController(
+            rootView: AnyView(
+                NewTelnetConnectionView(onDismiss: { [weak presenter] in
+                    guard let sheet else { return }
+                    presenter?.dismiss(sheet)
+                })
+                .environmentObject(utilityAreaViewModel)
+            )
+        )
+        sheet?.preferredContentSize = NSSize(width: 380, height: 240)
+        if let sheet {
+            presenter.presentAsSheet(sheet)
+        }
+    }
+
     @IBAction func openWorkspaceSettings(_ sender: Any) {
         guard let window = window,
               let workspace = workspace,

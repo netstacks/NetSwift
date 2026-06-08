@@ -11,6 +11,7 @@ import Foundation
 enum TerminalConnectionType {
     case localShell
     case ssh(session: RemoteSession, password: String?)
+    case telnet(session: RemoteSession)
 }
 
 final class UtilityAreaTerminal: ObservableObject, Identifiable, Equatable {
