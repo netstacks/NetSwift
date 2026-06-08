@@ -28,6 +28,7 @@ struct SessionOutlineView: NSViewControllerRepresentable {
     }
 
     func updateNSViewController(_ controller: SessionOutlineViewController, context: Context) {
+        print("[SM] outline update — rootNodes=\(viewModel.rootNodes.count)")
         controller.viewModel = viewModel
         controller.onConnect = onConnect
         controller.onEditSession = onEditSession

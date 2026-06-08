@@ -6,12 +6,13 @@
 import SwiftUI
 
 /// Edits a session's properties. Used both for creating a new session and editing an existing one.
-/// Notes render as Markdown in a preview below the editable field.
+///
+/// Deliberately mirrors the plain `VStack` / `LabeledContent` layout of `NewSSHConnectionView`
+/// (which presents reliably as an AppKit sheet). A grouped `Form` here made the Save/Cancel
+/// buttons stop receiving clicks inside the `NSHostingController` sheet.
 struct SessionPropertiesView: View {
-    /// The session being edited (a working copy).
     @State private var draft: RemoteSession
     @State private var password: String
-    private let originalID: UUID
     private let onSave: (RemoteSession, String?) -> Void
     private let onCancel: () -> Void
 
@@ -23,7 +24,6 @@ struct SessionPropertiesView: View {
     ) {
         _draft = State(initialValue: session)
         _password = State(initialValue: password ?? "")
-        self.originalID = session.id
         self.onSave = onSave
         self.onCancel = onCancel
     }
@@ -35,51 +35,73 @@ struct SessionPropertiesView: View {
         )
     }
 
+    private var authBinding: Binding<AuthMethodKind> {
+        Binding(
+            get: { AuthMethodKind(draft.authMethod) },
+            set: { draft.authMethod = $0.authMethod }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Session Properties").font(.headline)
 
-            Form {
-                TextField("Name", text: $draft.name)
-                Picker("Protocol", selection: $draft.protocol) {
-                    Text("SSH").tag(ConnectionProtocol.ssh)
-                    Text("Telnet").tag(ConnectionProtocol.telnet)
+            Group {
+                LabeledContent("Name") {
+                    TextField("My Router", text: $draft.name)
+                        .textFieldStyle(.roundedBorder)
                 }
-                TextField("Hostname", text: $draft.hostname)
-                TextField("Port", text: portString)
-                TextField("Username", text: $draft.username)
-
+                LabeledContent("Protocol") {
+                    Picker("", selection: $draft.protocol) {
+                        Text("SSH").tag(ConnectionProtocol.ssh)
+                        Text("Telnet").tag(ConnectionProtocol.telnet)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 160)
+                }
+                LabeledContent("Hostname") {
+                    TextField("192.168.1.1", text: $draft.hostname)
+                        .textFieldStyle(.roundedBorder)
+                }
+                LabeledContent("Port") {
+                    TextField("22", text: portString)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 70)
+                }
+                LabeledContent("Username") {
+                    TextField("admin", text: $draft.username)
+                        .textFieldStyle(.roundedBorder)
+                }
                 if draft.protocol == .ssh {
-                    Picker("Auth", selection: authBinding) {
-                        Text("Password").tag(AuthMethodKind.password)
-                        Text("Public Key").tag(AuthMethodKind.publicKey)
-                        Text("Keyboard Interactive").tag(AuthMethodKind.keyboardInteractive)
+                    LabeledContent("Auth") {
+                        Picker("", selection: authBinding) {
+                            Text("Password").tag(AuthMethodKind.password)
+                            Text("Public Key").tag(AuthMethodKind.publicKey)
+                            Text("Keyboard Interactive").tag(AuthMethodKind.keyboardInteractive)
+                        }
+                        .labelsHidden()
                     }
                     if case .password = draft.authMethod {
-                        SecureField("Password", text: $password)
+                        LabeledContent("Password") {
+                            SecureField("Password", text: $password)
+                                .textFieldStyle(.roundedBorder)
+                        }
                     }
                 }
-            }
-            .formStyle(.grouped)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Notes").font(.subheadline).foregroundStyle(.secondary)
-                TextEditor(text: $draft.notes)
-                    .font(.body.monospaced())
-                    .frame(height: 70)
-                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color(nsColor: .separatorColor)))
-                if !draft.notes.isEmpty, let rendered = try? AttributedString(markdown: draft.notes) {
-                    Text(rendered)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                LabeledContent("Notes") {
+                    TextField("", text: $draft.notes, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...4)
                 }
             }
 
             HStack {
                 Spacer()
-                Button("Cancel", action: onCancel).keyboardShortcut(.cancelAction)
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
                 Button("Save") {
+                    print("[SM] Save button tapped — name='\(draft.name)' host='\(draft.hostname)'")
                     onSave(draft, draft.protocol == .ssh && draft.authMethod == .password ? password : nil)
                 }
                 .keyboardShortcut(.defaultAction)
@@ -87,15 +109,7 @@ struct SessionPropertiesView: View {
             }
         }
         .padding(20)
-        .frame(width: 440)
-    }
-
-    /// Bridges the associated-value `AuthMethod` to a plain picker tag.
-    private var authBinding: Binding<AuthMethodKind> {
-        Binding(
-            get: { AuthMethodKind(draft.authMethod) },
-            set: { draft.authMethod = $0.authMethod }
-        )
+        .frame(width: 420)
     }
 }
 

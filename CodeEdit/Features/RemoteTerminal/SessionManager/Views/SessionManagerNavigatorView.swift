@@ -3,6 +3,7 @@
 //  CodeEdit
 //
 
+import AppKit
 import SwiftUI
 
 /// The Session Manager navigator tab: search field, toolbar, and the session tree.
@@ -17,8 +18,6 @@ struct SessionManagerNavigatorView: View {
     )
 
     @State private var searchText = ""
-    @State private var editingSession: RemoteSession?
-    @State private var newFolderParent: UUID?
 
     /// Session ids that currently have an open utility-area terminal tab.
     private var connectedSessionIDs: Set<UUID> {
@@ -50,10 +49,12 @@ struct SessionManagerNavigatorView: View {
                         viewModel: viewModel,
                         connectedSessionIDs: connectedSessionIDs,
                         onConnect: connect,
-                        onEditSession: { editingSession = viewModel.session($0) },
+                        onEditSession: { sessionID in
+                            if let session = viewModel.session(sessionID) { editSession(session) }
+                        },
                         onDuplicate: { viewModel.duplicateSession($0) },
                         onDelete: { viewModel.deleteNode($0) },
-                        onNewFolder: { newFolderParent = $0 }
+                        onNewFolder: { newFolder(in: $0) }
                     )
                 } else {
                     searchResults
@@ -61,34 +62,9 @@ struct SessionManagerNavigatorView: View {
             }
         }
         .safeAreaInset(edge: .bottom) { bottomBar }
-        .onAppear { viewModel.reload() }
-        .sheet(item: $editingSession) { session in
-            SessionPropertiesView(
-                session: session,
-                password: viewModel.password(for: session.id),
-                onSave: { edited, password in
-                    if viewModel.session(edited.id) == nil {
-                        viewModel.createSession(edited, in: edited.folderID ?? SessionFolder.rootID)
-                    } else {
-                        viewModel.updateSession(edited)
-                    }
-                    viewModel.setPassword(password, for: edited.id)
-                    editingSession = nil
-                },
-                onCancel: { editingSession = nil }
-            )
-        }
-        .sheet(item: Binding(
-            get: { newFolderParent.map { FolderParentBox(id: $0) } },
-            set: { newFolderParent = $0?.id }
-        )) { box in
-            NewSessionFolderView(
-                onCreate: { name in
-                    viewModel.createFolder(name: name, in: box.id)
-                    newFolderParent = nil
-                },
-                onCancel: { newFolderParent = nil }
-            )
+        .onAppear {
+            // Deferred so the model mutation does not publish during the view update.
+            DispatchQueue.main.async { viewModel.reload() }
         }
     }
 
@@ -106,9 +82,9 @@ struct SessionManagerNavigatorView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 4) {
-            Button { editingSession = newDraft() } label: { Image(systemName: "plus") }
+            Button { editSession(newDraft()) } label: { Image(systemName: "plus") }
                 .help("New Session")
-            Button { newFolderParent = SessionFolder.rootID } label: { Image(systemName: "folder.badge.plus") }
+            Button { newFolder(in: SessionFolder.rootID) } label: { Image(systemName: "folder.badge.plus") }
                 .help("New Folder")
             Spacer()
             Button { openDetachedPanel() } label: { Image(systemName: "macwindow.on.rectangle") }
@@ -140,7 +116,70 @@ struct SessionManagerNavigatorView: View {
     private func openDetachedPanel() {
         SessionManagerPanelController.shared.show(viewModel: viewModel, workspace: workspace)
     }
-}
 
-/// Identifiable wrapper so a `UUID` parent can drive a `.sheet(item:)`.
-private struct FolderParentBox: Identifiable { let id: UUID }
+    // MARK: - AppKit-hosted dialogs
+
+    /// Presents the session properties editor as an AppKit sheet on the workspace window.
+    /// SwiftUI `.sheet` is unreliable inside this AppKit-hosted navigator (the same reason
+    /// the SSH/Telnet "New Connection" dialogs use `presentAsSheet`), so dialogs go through AppKit.
+    private func editSession(_ session: RemoteSession) {
+        presentDialog(size: NSSize(width: 440, height: 700)) { dismiss in
+            SessionPropertiesView(
+                session: session,
+                password: viewModel.password(for: session.id),
+                onSave: { edited, password in
+                    print("[SM] onSave invoked — existing=\(viewModel.session(edited.id) != nil)")
+                    if viewModel.session(edited.id) == nil {
+                        viewModel.createSession(edited, in: edited.folderID ?? SessionFolder.rootID)
+                    } else {
+                        viewModel.updateSession(edited)
+                    }
+                    viewModel.setPassword(password, for: edited.id)
+                    print("[SM] after save — rootNodes=\(viewModel.rootNodes.count)")
+                    dismiss()
+                    print("[SM] dismiss() returned")
+                },
+                onCancel: dismiss
+            )
+        }
+    }
+
+    private func newFolder(in parentID: UUID) {
+        presentDialog(size: NSSize(width: 300, height: 170)) { dismiss in
+            NewSessionFolderView(
+                onCreate: { name in
+                    viewModel.createFolder(name: name, in: parentID)
+                    dismiss()
+                },
+                onCancel: dismiss
+            )
+        }
+    }
+
+    /// Presents `content` as an AppKit sheet on the workspace window, passing a `dismiss`
+    /// closure that closes it. Mirrors `CodeEditWindowController.openSSHConnectionSheet`.
+    private func presentDialog<Content: View>(
+        size: NSSize,
+        @ViewBuilder content: (@escaping () -> Void) -> Content
+    ) {
+        guard let presenter = workspace.windowControllers.first?.contentViewController else {
+            print("[SM] presentDialog: NO presenter (windowControllers=\(workspace.windowControllers.count))")
+            return
+        }
+        print("[SM] presentDialog: presenting AppKit sheet")
+        var hosting: NSHostingController<AnyView>?
+        let dismiss: () -> Void = { [weak presenter] in
+            guard let controller = hosting else { return }
+            presenter?.dismiss(controller)
+            hosting = nil
+        }
+        hosting = NSHostingController(rootView: AnyView(content(dismiss)))
+        // Fixed size on purpose: `.sizingOptions = [.preferredContentSize]` makes the
+        // hosting controller resize the sheet on every SwiftUI re-measure, which loops the
+        // window's Update-Constraints pass and crashes. Mirrors the SSH/Telnet dialogs.
+        hosting?.preferredContentSize = size
+        if let hosting {
+            presenter.presentAsSheet(hosting)
+        }
+    }
+}
