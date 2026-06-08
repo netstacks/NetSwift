@@ -13,6 +13,10 @@ struct SessionFolder: Identifiable, Codable, Equatable {
     var parentID: UUID?
     var childIDs: [UUID]
 
+    /// Reserved id for the hidden root folder whose `childIDs` define top-level ordering.
+    /// Never shown in the UI.
+    static let rootID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+
     init(
         id: UUID = UUID(),
         name: String,
