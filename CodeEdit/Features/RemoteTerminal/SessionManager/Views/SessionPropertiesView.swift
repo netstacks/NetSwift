@@ -101,7 +101,7 @@ struct SessionPropertiesView: View {
 
 /// A plain (no associated value) mirror of ``AuthMethod`` for use as a Picker tag.
 /// Selecting Public Key mints a placeholder keyID; a real SSH-key picker is a later phase.
-enum AuthMethodKind: Hashable {
+enum AuthMethodKind: String, Codable, Hashable {
     case password, publicKey, keyboardInteractive
 
     init(_ method: AuthMethod) {

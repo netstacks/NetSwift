@@ -56,6 +56,9 @@ struct SettingsData: Codable, Hashable {
     /// Developer settings for CodeEdit developers
     var developerSettings: DeveloperSettings = .init()
 
+    /// Session Manager defaults
+    var sessionManager: SessionManagerSettings = .init()
+
     /// Default initializer
     init() {}
 
@@ -82,6 +85,9 @@ struct SettingsData: Codable, Hashable {
         ) ?? .init()
         self.developerSettings = try container.decodeIfPresent(
             DeveloperSettings.self, forKey: .developerSettings
+        ) ?? .init()
+        self.sessionManager = try container.decodeIfPresent(
+            SessionManagerSettings.self, forKey: .sessionManager
         ) ?? .init()
     }
 
