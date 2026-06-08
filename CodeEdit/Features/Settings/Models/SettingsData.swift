@@ -56,6 +56,9 @@ struct SettingsData: Codable, Hashable {
     /// Developer settings for CodeEdit developers
     var developerSettings: DeveloperSettings = .init()
 
+    /// Session Manager defaults
+    var sessionManager: SessionManagerSettings = .init()
+
     /// Default initializer
     init() {}
 
@@ -83,6 +86,9 @@ struct SettingsData: Codable, Hashable {
         self.developerSettings = try container.decodeIfPresent(
             DeveloperSettings.self, forKey: .developerSettings
         ) ?? .init()
+        self.sessionManager = try container.decodeIfPresent(
+            SessionManagerSettings.self, forKey: .sessionManager
+        ) ?? .init()
     }
 
     // swiftlint:disable cyclomatic_complexity
@@ -102,6 +108,8 @@ struct SettingsData: Codable, Hashable {
             textEditing.searchKeys.forEach { settings.append(.init(name, isSetting: true, settingName: $0)) }
         case .terminal:
             terminal.searchKeys.forEach { settings.append(.init(name, isSetting: true, settingName: $0)) }
+        case .sessionManager:
+            sessionManager.searchKeys.forEach { settings.append(.init(name, isSetting: true, settingName: $0)) }
         case .search:
             search.searchKeys.forEach { settings.append(.init(name, isSetting: true, settingName: $0)) }
         case .sourceControl:
