@@ -4,6 +4,7 @@ import XCTest
 final class SessionManagerViewModelTests: XCTestCase {
     private var tempURL: URL!
     private var store: SessionStore!
+    private var credentials: SessionCredentialStore!
     private var viewModel: SessionManagerViewModel!
 
     override func setUpWithError() throws {
@@ -11,14 +12,13 @@ final class SessionManagerViewModelTests: XCTestCase {
             .appendingPathComponent("session-mgr-test-\(UUID().uuidString).db")
         store = try SessionStore(tempURL)
         let keychain = CodeEditKeychain(keyPrefix: "test-session-mgr-\(UUID().uuidString)-")
-        viewModel = SessionManagerViewModel(
-            store: store,
-            credentials: SessionCredentialStore(keychain: keychain)
-        )
+        credentials = SessionCredentialStore(keychain: keychain)
+        viewModel = SessionManagerViewModel(store: store, credentials: credentials)
     }
 
     override func tearDownWithError() throws {
         viewModel = nil
+        credentials = nil
         store = nil
         try? FileManager.default.removeItem(at: tempURL)
     }
@@ -98,5 +98,34 @@ final class SessionManagerViewModelTests: XCTestCase {
         XCTAssertNotEqual(copy?.id, session.id)
         XCTAssertEqual(viewModel.children(of: folder.id).count, 2)
         XCTAssertEqual(copy?.name, "s copy")
+    }
+
+    func test_deleteSession_removesStoredCredential() {
+        let session = RemoteSession(name: "s", hostname: "h", username: "u")
+        viewModel.createSession(session, in: SessionFolder.rootID)
+        viewModel.setPassword("secret", for: session.id)
+        XCTAssertEqual(credentials.password(forSessionID: session.id), "secret")
+        viewModel.deleteNode(session.id)
+        XCTAssertNil(credentials.password(forSessionID: session.id))
+    }
+
+    func test_deleteFolder_removesNestedSessionCredential() {
+        let folder = viewModel.createFolder(name: "Lab", in: SessionFolder.rootID)
+        let child = RemoteSession(name: "s", hostname: "h", username: "u")
+        viewModel.createSession(child, in: folder.id)
+        viewModel.setPassword("secret", for: child.id)
+        viewModel.deleteNode(folder.id)
+        XCTAssertNil(credentials.password(forSessionID: child.id))
+    }
+
+    func test_duplicateSession_copiesStoredCredential() {
+        let session = RemoteSession(name: "s", hostname: "h", username: "u")
+        viewModel.createSession(session, in: SessionFolder.rootID)
+        viewModel.setPassword("secret", for: session.id)
+        let copy = viewModel.duplicateSession(session.id)
+        XCTAssertNotNil(copy)
+        XCTAssertEqual(credentials.password(forSessionID: copy!.id), "secret")
+        // Clean up the copy's keychain entry.
+        if let copyID = copy?.id { credentials.deletePassword(forSessionID: copyID) }
     }
 }

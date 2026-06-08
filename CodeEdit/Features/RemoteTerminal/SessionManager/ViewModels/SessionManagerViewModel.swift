@@ -127,6 +127,16 @@ final class SessionManagerViewModel: ObservableObject {
         store.saveFolder(parent)
     }
 
+    // MARK: - Credentials
+
+    func setPassword(_ password: String?, for sessionID: UUID) {
+        if let password, !password.isEmpty {
+            credentials.setPassword(password, forSessionID: sessionID)
+        } else {
+            credentials.deletePassword(forSessionID: sessionID)
+        }
+    }
+
     // MARK: - Duplicate
 
     @discardableResult
