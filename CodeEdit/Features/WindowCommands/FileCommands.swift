@@ -45,6 +45,9 @@ struct FileCommands: Commands {
                     NSApp.sendAction(#selector(AppDelegate.openNewSSHConnection(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("K", modifiers: [.command, .shift])
+                Button("New Telnet Connection...") {
+                    NSApp.sendAction(#selector(AppDelegate.openNewTelnetConnection(_:)), to: nil, from: nil)
+                }
             }
         }
 
