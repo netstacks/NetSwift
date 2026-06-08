@@ -118,6 +118,20 @@ class UtilityAreaViewModel: ObservableObject {
         selectedTerminals = [terminal.id]
     }
 
+    /// Adds a Telnet session tab to the utility area.
+    /// - Parameter session: The ``RemoteSession`` configuration describing the remote host.
+    func addTelnetTerminal(session: RemoteSession) {
+        let terminal = UtilityAreaTerminal(
+            id: UUID(),
+            url: URL(fileURLWithPath: NSHomeDirectory()),
+            title: session.name,
+            shell: nil,
+            connectionType: .telnet(session: session)
+        )
+        terminals.append(terminal)
+        selectedTerminals = [terminal.id]
+    }
+
     /// Add a new terminal to the workspace and selects it.
     /// - Parameters:
     ///   - shell: The shell to use, `nil` if auto-detect the default shell.

@@ -8,29 +8,38 @@
 import SwiftUI
 import Cocoa
 
-// MARK: - SSH terminal cache
+// MARK: - Remote terminal cache
 
 /// Caches ``CEConnectionTerminalView`` instances keyed by terminal UUID so that
-/// switching away from an SSH tab and back does not disconnect the session.
-private final class SSHTerminalCache: ObservableObject {
+/// switching away from a remote (SSH/Telnet) tab and back does not disconnect the session.
+private final class RemoteTerminalCache: ObservableObject {
     private var views: [UUID: CEConnectionTerminalView] = [:]
 
     deinit {
         views.values.forEach { $0.connection.disconnect() }
     }
 
-    /// Returns an existing cached view or creates and caches a new one.
-    /// Connection is started in ``SSHTerminalNSView/makeNSView(context:)`` to avoid
+    /// Returns an existing cached view, or builds the right connection for the
+    /// terminal's ``TerminalConnectionType`` and caches a new one.
+    /// Returns `nil` for `.localShell`, which uses ``TerminalEmulatorView`` instead.
+    /// Connection is started in ``RemoteTerminalNSView/makeNSView(context:)`` to avoid
     /// side effects during SwiftUI body evaluation.
-    func view(
-        for terminal: UtilityAreaTerminal,
-        session: RemoteSession,
-        password: String?
-    ) -> CEConnectionTerminalView {
+    func view(for terminal: UtilityAreaTerminal) -> CEConnectionTerminalView? {
         if let existing = views[terminal.id] {
             return existing
         }
-        let connection = SSHConnection(session: session, password: password)
+
+        let connection: (any TerminalConnection)?
+        switch terminal.connectionType {
+        case .localShell:
+            connection = nil
+        case let .ssh(session, password):
+            connection = SSHConnection(session: session, password: password)
+        case let .telnet(session):
+            connection = TelnetConnection(session: session)
+        }
+
+        guard let connection else { return nil }
         let terminalView = CEConnectionTerminalView(connection: connection)
         views[terminal.id] = terminalView
         return terminalView
@@ -46,9 +55,10 @@ private final class SSHTerminalCache: ObservableObject {
 // MARK: - NSViewRepresentable wrapper for CEConnectionTerminalView
 
 /// Wraps a ``CEConnectionTerminalView`` (an ``NSView`` subclass) for use in SwiftUI.
-/// Fires the SSH connect task in ``makeNSView(context:)`` — the correct lifecycle hook
-/// for one-time setup — rather than during SwiftUI body evaluation.
-private struct SSHTerminalNSView: NSViewRepresentable {
+/// Fires the connect task in ``makeNSView(context:)`` — the correct lifecycle hook
+/// for one-time setup — rather than during SwiftUI body evaluation. Works for any
+/// ``TerminalConnection`` (SSH or Telnet).
+private struct RemoteTerminalNSView: NSViewRepresentable {
     let terminalView: CEConnectionTerminalView
 
     func makeNSView(context: Context) -> CEConnectionTerminalView {
@@ -97,7 +107,7 @@ struct UtilityAreaTerminalView: View {
 
     @StateObject private var themeModel: ThemeModel = .shared
 
-    @StateObject private var sshCache = SSHTerminalCache()
+    @StateObject private var remoteCache = RemoteTerminalCache()
 
     @State private var isMenuVisible = false
 
@@ -186,17 +196,13 @@ struct UtilityAreaTerminalView: View {
                                 .frame(height: max(0, constrainedHeight - 1))
                                 .id(selectedTerminal.id)
                                 .accessibilityIdentifier("terminal")
-                            case let .ssh(session, password):
-                                SSHTerminalNSView(
-                                    terminalView: sshCache.view(
-                                        for: selectedTerminal,
-                                        session: session,
-                                        password: password
-                                    )
-                                )
-                                .frame(height: max(0, constrainedHeight - 1))
-                                .id(selectedTerminal.id)
-                                .accessibilityIdentifier("terminal")
+                            case .ssh, .telnet:
+                                if let remoteView = remoteCache.view(for: selectedTerminal) {
+                                    RemoteTerminalNSView(terminalView: remoteView)
+                                        .frame(height: max(0, constrainedHeight - 1))
+                                        .id(selectedTerminal.id)
+                                        .accessibilityIdentifier("terminal")
+                                }
                             }
                         }
                     }
@@ -253,10 +259,10 @@ struct UtilityAreaTerminalView: View {
             utilityAreaViewModel.initializeTerminals(workspaceURL: workspaceURL)
         }
         .onChange(of: utilityAreaViewModel.terminals) { oldTerminals, newTerminals in
-            // Remove cached SSH views for terminals that no longer exist.
+            // Remove cached remote views for terminals that no longer exist.
             let activeIDs = Set(newTerminals.map(\.id))
             for oldTerminal in oldTerminals where !activeIDs.contains(oldTerminal.id) {
-                sshCache.removeView(for: oldTerminal.id)
+                remoteCache.removeView(for: oldTerminal.id)
             }
         }
         .accessibilityIdentifier("terminal-area")
