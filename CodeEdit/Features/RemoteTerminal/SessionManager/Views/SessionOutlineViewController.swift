@@ -84,7 +84,8 @@ final class SessionOutlineViewController: NSViewController {
         connectedSessionIDs.contains(sessionID) ? .connected : .disconnected
     }
 
-    @objc private func onItemDoubleClicked() {
+    @objc
+    private func onItemDoubleClicked() {
         guard let outlineItem = outlineView.item(atRow: outlineView.clickedRow) as? SessionOutlineItem else {
             return
         }
