@@ -30,6 +30,9 @@ final class SessionOutlineViewController: NSViewController {
     var onConnect: ((UUID) -> Void)?
     /// Called when a session row is chosen for editing (Properties).
     var onEditSession: ((UUID) -> Void)?
+    var onDuplicate: ((UUID) -> Void)?
+    var onDelete: ((UUID) -> Void)?
+    var onNewFolder: ((UUID) -> Void)?   // parameter: parent folder id for the new folder
 
     private var itemCache: [UUID: SessionOutlineItem] = [:]
 
@@ -53,6 +56,9 @@ final class SessionOutlineViewController: NSViewController {
         outlineView.headerView = nil
         outlineView.rowHeight = 22
         outlineView.doubleAction = #selector(onItemDoubleClicked)
+        let menu = NSMenu()
+        menu.delegate = self
+        outlineView.menu = menu
         outlineView.allowsMultipleSelection = true
         outlineView.setAccessibilityIdentifier("SessionManager")
 
@@ -190,4 +196,49 @@ extension SessionOutlineViewController: NSOutlineViewDelegate {
         ])
         return cell
     }
+}
+
+// MARK: - Context menu
+
+extension SessionOutlineViewController: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let row = outlineView.clickedRow
+        guard row >= 0, let outlineItem = outlineView.item(atRow: row) as? SessionOutlineItem else {
+            addItem(to: menu, title: "New Folder") { [weak self] in self?.onNewFolder?(SessionFolder.rootID) }
+            return
+        }
+
+        if outlineItem.isFolder {
+            addItem(to: menu, title: "New Folder") { [weak self] in self?.onNewFolder?(outlineItem.nodeID) }
+            menu.addItem(.separator())
+            addItem(to: menu, title: "Delete") { [weak self] in self?.onDelete?(outlineItem.nodeID) }
+        } else {
+            addItem(to: menu, title: "Connect") { [weak self] in self?.onConnect?(outlineItem.nodeID) }
+            addItem(to: menu, title: "Open in New Tab") { [weak self] in self?.onConnect?(outlineItem.nodeID) }
+            menu.addItem(.separator())
+            addItem(to: menu, title: "Duplicate") { [weak self] in self?.onDuplicate?(outlineItem.nodeID) }
+            addItem(to: menu, title: "Properties…") { [weak self] in self?.onEditSession?(outlineItem.nodeID) }
+            menu.addItem(.separator())
+            addItem(to: menu, title: "Delete") { [weak self] in self?.onDelete?(outlineItem.nodeID) }
+        }
+    }
+
+    private func addItem(to menu: NSMenu, title: String, action: @escaping () -> Void) {
+        let item = NSMenuItem(title: title, action: #selector(menuActionInvoked(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = MenuActionBox(action: action)
+        menu.addItem(item)
+    }
+
+    @objc
+    private func menuActionInvoked(_ sender: NSMenuItem) {
+        (sender.representedObject as? MenuActionBox)?.action()
+    }
+}
+
+/// Boxes a closure so it can ride on `NSMenuItem.representedObject`.
+private final class MenuActionBox {
+    let action: () -> Void
+    init(action: @escaping () -> Void) { self.action = action }
 }

@@ -11,12 +11,18 @@ struct SessionOutlineView: NSViewControllerRepresentable {
     let connectedSessionIDs: Set<UUID>
     let onConnect: (UUID) -> Void
     let onEditSession: (UUID) -> Void
+    let onDuplicate: (UUID) -> Void
+    let onDelete: (UUID) -> Void
+    let onNewFolder: (UUID) -> Void
 
     func makeNSViewController(context: Context) -> SessionOutlineViewController {
         let controller = SessionOutlineViewController()
         controller.viewModel = viewModel
         controller.onConnect = onConnect
         controller.onEditSession = onEditSession
+        controller.onDuplicate = onDuplicate
+        controller.onDelete = onDelete
+        controller.onNewFolder = onNewFolder
         controller.connectedSessionIDs = connectedSessionIDs
         return controller
     }
@@ -25,6 +31,9 @@ struct SessionOutlineView: NSViewControllerRepresentable {
         controller.viewModel = viewModel
         controller.onConnect = onConnect
         controller.onEditSession = onEditSession
+        controller.onDuplicate = onDuplicate
+        controller.onDelete = onDelete
+        controller.onNewFolder = onNewFolder
         controller.connectedSessionIDs = connectedSessionIDs
         controller.reload()
     }
