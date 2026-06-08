@@ -9,6 +9,9 @@ import SwiftUI
 struct SessionManagerNavigatorView: View {
     @EnvironmentObject private var workspace: WorkspaceDocument
 
+    @AppSettings(\.sessionManager)
+    var sessionDefaults
+
     @StateObject private var viewModel = SessionManagerViewModel(
         store: SessionStore.shared ?? (try? SessionStore()) ?? SessionStore.inMemoryFallback
     )
@@ -58,6 +61,7 @@ struct SessionManagerNavigatorView: View {
             }
         }
         .safeAreaInset(edge: .bottom) { bottomBar }
+        .onAppear { viewModel.reload() }
         .sheet(item: $editingSession) { session in
             SessionPropertiesView(
                 session: session,
@@ -117,7 +121,14 @@ struct SessionManagerNavigatorView: View {
     }
 
     private func newDraft() -> RemoteSession {
-        RemoteSession(name: "New Session", hostname: "", username: "", folderID: SessionFolder.rootID)
+        RemoteSession(
+            name: "New Session",
+            protocol: sessionDefaults.defaultProtocol,
+            hostname: "",
+            username: sessionDefaults.defaultUsername,
+            authMethod: sessionDefaults.defaultAuthMethod.authMethod,
+            folderID: SessionFolder.rootID
+        )
     }
 
     private func connect(_ sessionID: UUID) {
