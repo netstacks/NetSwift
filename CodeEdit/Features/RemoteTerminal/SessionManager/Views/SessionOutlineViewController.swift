@@ -33,6 +33,8 @@ final class SessionOutlineViewController: NSViewController {
 
     private var itemCache: [UUID: SessionOutlineItem] = [:]
 
+    static let nodePasteboardType = NSPasteboard.PasteboardType("app.codeedit.session-node")
+
     private func item(for nodeID: UUID, isFolder: Bool) -> SessionOutlineItem {
         if let cached = itemCache[nodeID] { return cached }
         let made = SessionOutlineItem(nodeID: nodeID, isFolder: isFolder)
@@ -57,6 +59,8 @@ final class SessionOutlineViewController: NSViewController {
         let column = NSTableColumn(identifier: .init(rawValue: "Cell"))
         outlineView.addTableColumn(column)
         outlineView.outlineTableColumn = column
+        outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
+        outlineView.registerForDraggedTypes([Self.nodePasteboardType])
 
         scrollView.documentView = outlineView
         scrollView.contentView.automaticallyAdjustsContentInsets = false
@@ -115,6 +119,49 @@ extension SessionOutlineViewController: NSOutlineViewDataSource {
 
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
         (item as? SessionOutlineItem)?.isFolder ?? false
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
+        guard let outlineItem = item as? SessionOutlineItem else { return nil }
+        let pasteboardItem = NSPasteboardItem()
+        pasteboardItem.setString(outlineItem.nodeID.uuidString, forType: Self.nodePasteboardType)
+        return pasteboardItem
+    }
+
+    func outlineView(
+        _ outlineView: NSOutlineView,
+        validateDrop info: NSDraggingInfo,
+        proposedItem item: Any?,
+        proposedChildIndex index: Int
+    ) -> NSDragOperation {
+        guard let draggedID = draggedNodeID(from: info) else { return [] }
+        let targetParentID = (item as? SessionOutlineItem)?.nodeID ?? SessionFolder.rootID
+        // Only drop into folders (or root); reject dropping a folder into its own subtree.
+        if let targetItem = item as? SessionOutlineItem, !targetItem.isFolder { return [] }
+        if let viewModel, viewModel.folder(draggedID) != nil,
+           draggedID == targetParentID || viewModel.isDescendant(targetParentID, of: draggedID) {
+            return []
+        }
+        return .move
+    }
+
+    func outlineView(
+        _ outlineView: NSOutlineView,
+        acceptDrop info: NSDraggingInfo,
+        item: Any?,
+        childIndex index: Int
+    ) -> Bool {
+        guard let draggedID = draggedNodeID(from: info), let viewModel else { return false }
+        let targetParentID = (item as? SessionOutlineItem)?.nodeID ?? SessionFolder.rootID
+        viewModel.move(draggedID, to: targetParentID, at: index == NSOutlineViewDropOnItemIndex ? nil : index)
+        outlineView.reloadData()
+        if let parentItem = item as? SessionOutlineItem { outlineView.expandItem(parentItem) }
+        return true
+    }
+
+    private func draggedNodeID(from info: NSDraggingInfo) -> UUID? {
+        guard let string = info.draggingPasteboard.string(forType: Self.nodePasteboardType) else { return nil }
+        return UUID(uuidString: string)
     }
 }
 
