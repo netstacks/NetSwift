@@ -23,6 +23,14 @@ struct SessionRowView: View {
     let session: RemoteSession
     let status: SessionConnectionStatus
 
+    private var helpText: String {
+        var text = "\(session.username)@\(session.hostname):\(session.port)"
+        if let last = session.lastConnectedAt {
+            text += " — last connected \(last.formatted(date: .abbreviated, time: .shortened))"
+        }
+        return text
+    }
+
     var body: some View {
         HStack(spacing: 6) {
             Circle()
@@ -39,8 +47,7 @@ struct SessionRowView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-        .help("\(session.username)@\(session.hostname):\(session.port)"
-              + (session.lastConnectedAt.map { " — last connected \($0.formatted(date: .abbreviated, time: .shortened))" } ?? ""))
+        .help(helpText)
     }
 }
 
