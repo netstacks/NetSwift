@@ -18,9 +18,9 @@ final class TelnetConnectionTests: XCTestCase {
     }
 
     func test_eachInstanceHasUniqueID() {
-        let a = TelnetConnection(session: makeSession())
-        let b = TelnetConnection(session: makeSession())
-        XCTAssertNotEqual(a.id, b.id)
+        let first = TelnetConnection(session: makeSession())
+        let second = TelnetConnection(session: makeSession())
+        XCTAssertNotEqual(first.id, second.id)
     }
 
     func test_disconnectWhileNotConnected_doesNotCrash() {
