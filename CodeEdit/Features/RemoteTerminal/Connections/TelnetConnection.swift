@@ -24,6 +24,7 @@ final class TelnetConnection: TerminalConnection {
     private var connection: NWConnection?
     private var cols: Int = 80
     private var rows: Int = 24
+    private var hasTerminated = false
 
     init(session: RemoteSession) {
         self.session = session
@@ -50,9 +51,8 @@ final class TelnetConnection: TerminalConnection {
                         if !resumed { resumed = true; continuation.resume() }
                         self.receiveLoop()
                     case .failed(let error):
-                        self.isConnected = false
                         if !resumed { resumed = true; continuation.resume(throwing: error) }
-                        self.onTerminated?(nil)
+                        self.terminate(exitCode: nil)
                     case .cancelled:
                         self.isConnected = false
                     default:
@@ -70,6 +70,7 @@ final class TelnetConnection: TerminalConnection {
             self.connection?.cancel()
             self.connection = nil
             self.isConnected = false
+            self.hasTerminated = true
         }
     }
 
@@ -81,7 +82,7 @@ final class TelnetConnection: TerminalConnection {
             if byte == TelnetParser.IAC { escaped.append(TelnetParser.IAC) }
             escaped.append(byte)
         }
-        sendRaw(escaped)
+        queue.async { self.sendRaw(escaped) }
     }
 
     func resize(cols: Int, rows: Int) {
@@ -106,13 +107,19 @@ final class TelnetConnection: TerminalConnection {
             }
 
             if isComplete || error != nil {
-                self.isConnected = false
-                self.onTerminated?(nil)
+                self.terminate(exitCode: nil)
                 return
             }
 
             self.receiveLoop()
         }
+    }
+
+    private func terminate(exitCode: Int32?) {
+        guard !hasTerminated else { return }
+        hasTerminated = true
+        isConnected = false
+        onTerminated?(exitCode)
     }
 
     private func sendRaw(_ bytes: [UInt8]) {
